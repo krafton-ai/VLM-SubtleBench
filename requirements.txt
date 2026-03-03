@@ -1,0 +1,18 @@
+omegaconf
+openai
+pydantic
+tenacity
+termcolor
+tiktoken
+pillow
+numpy
+requests
+
+# Optional: install as needed for specific backends or analysis
+# anthropic          # for Anthropic Claude API
+# google-genai       # for Google Gemini API
+# transformers       # for local models
+# torch              # for local models
+# matplotlib         # for analysis scripts
+# seaborn            # for analysis scripts
+# pandas             # for analysis scripts

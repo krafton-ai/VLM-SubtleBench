@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlm-subtlebench"
+version = "0.1.0"
+description = "Comparison Capability of VLM"
+authors = [
+  { name="Minkyu Kim", email="kimmk135@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "omegaconf",
+  "openai",
+  "pydantic",
+  "tenacity",
+  "termcolor",
+  "tiktoken",
+  "pillow",
+  "numpy",
+  "requests",
+]
+
+[tool.setuptools]
+packages = ["vlm_subtlebench"]
+package-dir = {"" = "src"}

@@ -1,0 +1,20 @@
+# Multiple Choice Evaluation Configuration
+
+log_path: "./logs"
+
+# Model configuration
+model:
+  llm_name: "gpt-4o"
+  temperature: 0.5
+  repetition_penalty: 1.0
+  use_multithreading: true
+  max_workers: 8
+  prompt_type: "standard"  # "standard" or "camera_augmented"
+
+data:
+  dataset_path: "VLM-SubtleBench"
+  max_questions: null  # null means evaluate all questions
+  random_seed: 0
+  split: "test"   # "test", "val", or null for all splits
+  category: null    # null = all. Options: action, attribute, emotion, existence, quality, quantity, spatial, state, temporal, viewpoint
+  domain: null      # null = all. Options: natural, industrial, medical, aerial, synthetic

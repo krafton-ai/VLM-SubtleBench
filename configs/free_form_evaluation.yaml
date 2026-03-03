@@ -1,0 +1,29 @@
+# Free Form Evaluation Configuration
+
+log_path: "./logs"
+
+# Model configuration
+model:
+  llm_name: "gpt-4o"
+  temperature: 0.5
+  repetition_penalty: 1.0
+  use_multithreading: true
+  max_workers: 8
+  prompt_type: "standard"
+  use_structured_output: false
+
+data:
+  # Evaluation mode configuration
+  mode: "dataset"  # "pair" or "dataset"
+
+  # Dataset configuration (for dataset mode)
+  dataset_path: "VLM-SubtleBench"
+  split: "test"   # "test", "val", or null for all splits
+  category: null    # null = all. Options: action, attribute, emotion, existence, quality, quantity, spatial, state, temporal, viewpoint
+  domain: null      # null = all. Options: natural, industrial, medical, aerial, synthetic
+
+  # Image paths (for pair mode)
+  first_image: "examples/chinese_garden_4k_pair_0005_original.png"
+  second_image: "examples/chinese_garden_4k_pair_0005_modified.png"
+
+  max_pairs: null  # null means no limit
