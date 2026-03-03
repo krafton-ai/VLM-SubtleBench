@@ -37,6 +37,27 @@ def parse_configs():
     return cfg
 
 
+def _redact_sensitive(cfg):
+    """Return a copy of config with sensitive keys redacted for safe logging."""
+    from omegaconf import OmegaConf
+    sensitive_keys = {"api_key", "api_base_url", "secret", "password", "token"}
+    container = OmegaConf.to_container(cfg, resolve=True)
+
+    def redact_dict(d):
+        if not isinstance(d, dict):
+            return d
+        out = {}
+        for k, v in d.items():
+            key_lower = k.lower() if isinstance(k, str) else ""
+            if any(s in key_lower for s in sensitive_keys) and v:
+                out[k] = "[REDACTED]"
+            else:
+                out[k] = redact_dict(v) if isinstance(v, dict) else v
+        return out
+
+    return redact_dict(container)
+
+
 def set_log_path(cfg):
     # Build data name from dataset_path + filters
     dataset_name = Path(cfg.data.dataset_path).name
@@ -84,7 +105,7 @@ def set_log_path(cfg):
 def main():
     # Parse configuration
     config = parse_configs()
-    logger.info(f"Configuration: {config}")
+    logger.info(f"Configuration: {_redact_sensitive(config)}")
 
     # Initialize evaluator
     evaluator = MultipleChoiceEvaluator(config.model)

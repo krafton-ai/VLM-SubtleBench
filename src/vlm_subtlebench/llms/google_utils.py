@@ -1,9 +1,10 @@
 """Google Gemini API utilities."""
 
-from typing import List, Dict, Union
-import os
+import json
 import logging
+import os
 import base64
+from typing import List, Dict, Union
 
 from google.oauth2 import service_account
 from google import genai
@@ -14,10 +15,24 @@ logger = logging.getLogger(__name__)
 
 def setup_gemini(
     service_account_path: str = "keys/google-key/gemini_gcp.json",
-    project_id: str = "gamebench-456108",
+    project_id: str | None = None,
     location: str = "us-central1",
 ) -> genai.Client:
-    """Initialize Gemini client with service account credentials."""
+    """Initialize Gemini client with service account credentials.
+
+    project_id is resolved in order: argument, GOOGLE_CLOUD_PROJECT env var,
+    then the project_id field in the service account JSON. No default is
+    hardcoded to avoid leaking project identifiers.
+    """
+    project_id = project_id or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project_id and os.path.isfile(service_account_path):
+        with open(service_account_path) as f:
+            project_id = json.load(f).get("project_id")
+    if not project_id:
+        raise ValueError(
+            "Gemini project_id must be set via GOOGLE_CLOUD_PROJECT env var, "
+            "passed as project_id, or present in the service account JSON."
+        )
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     credentials = service_account.Credentials.from_service_account_file(
         service_account_path, scopes=scopes
