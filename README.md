@@ -128,6 +128,7 @@ python scripts/evaluate_free_form.py \
 
 You can use any model served via an **OpenAI-compatible API**. This works with serving frameworks such as:
 
+- [SGLang](https://docs.sglang.ai/) (`python -m sglang.launch_server`)
 - [vLLM](https://docs.vllm.ai/) (`python -m vllm.entrypoints.openai.api_server`)
 - [Ollama](https://ollama.com/) (`ollama serve`)
 - [LMStudio](https://lmstudio.ai/)
@@ -135,38 +136,33 @@ You can use any model served via an **OpenAI-compatible API**. This works with s
 
 ### Step 1: Serve your model
 
+The served model name must start with `local_` so it routes to the local backend instead of a cloud provider. Use `--served-model-name` (or equivalent) to set this.
+
 ```bash
+# Example with SGLang
+python -m sglang.launch_server \
+  --model Qwen/Qwen3.5-0.8B \
+  --port 8000 \
+  --served-model-name local_Qwen3.5-0.8B
+
 # Example with vLLM
 python -m vllm.entrypoints.openai.api_server \
   --model meta-llama/Llama-3.2-11B-Vision-Instruct \
-  --port 8000
-
-# Example with Ollama
-ollama serve   # serves on port 11434 by default
+  --port 8000 \
+  --served-model-name local_Llama-3.2-11B-Vision-Instruct
 ```
 
 ### Step 2: Run evaluation pointing to your server
 
-Provide `model.api_key` and `model.api_base_url` via CLI overrides. The model name must **not** match any known cloud model prefix (e.g., `gpt`, `claude`, `gemini`) so it routes to the local backend.
+Provide `model.api_key` and `model.api_base_url` via CLI overrides.
 
 ```bash
 python scripts/evaluate_multiple_choice.py \
-  model.llm_name="meta-llama/Llama-3.2-11B-Vision-Instruct" \
+  model.llm_name="local_Qwen3.5-0.8B" \
   model.api_key="dummy" \
   model.api_base_url="http://localhost:8000/v1" \
-  data.max_questions=10
+  data.max_questions=3
 ```
-
-For Ollama:
-
-```bash
-python scripts/evaluate_multiple_choice.py \
-  model.llm_name="llama3.2-vision" \
-  model.api_key="ollama" \
-  model.api_base_url="http://localhost:11434/v1"
-```
-
-> **Note:** The local backend requires `transformers` (and optionally `torch`) for tokenization. Install them with `pip install transformers torch`.
 
 
 ### Available Prompt Types
@@ -192,7 +188,7 @@ Model routing is determined by substring matching on the model name:
 | `gemini*` | Google Gemini | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | `llava*` | vLLM Server | `llava-hf/llava-onevision-qwen2-0.5b-ov-hf` |
 | `qwen*`, `internvl*` | OpenRouter | `qwen/qwen2.5-vl-72b-instruct` |
-| *(anything else)* | Local (OpenAI-compatible) | Any locally served model |
+| `local_*` | Local (OpenAI-compatible) | `local_Qwen3.5-0.8B`, `local_Llama-3.2-11B` |
 
 ## Results and Logs
 

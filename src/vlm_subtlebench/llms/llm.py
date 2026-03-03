@@ -7,21 +7,11 @@ from typing import Any, Dict, Iterable, List, Union
 import numpy as np
 import tiktoken
 from anthropic.types import MessageParam
-from openai import OpenAI, Stream
-from openai.types import Completion as OpenAICompletion
-from openai.types.chat.chat_completion import (
-    ChatCompletion as OpenAIChatCompletion,
-)
-from openai.types.chat.chat_completion import (
-    ChatCompletionMessage as OpenAIChatCompletionMessage,
-)
-from openai.types.chat.chat_completion import Choice as OpenAIChoice
-from transformers import AutoTokenizer
+from openai import OpenAI
 
 from .openai_utils import (
     MoneyManager,
     chat_completion_request,
-    completion_request,
 )
 from .anthropic_utils import (
     chat_completion_request as anthropic_chat_completion_request,
@@ -36,8 +26,7 @@ from .vllmserver_utils import (
     chat_completion_request as vllmserver_chat_completion_request,
 )
 
-from .utils import CompletionFunc, Message, chat_messages_to_prompt
-from .constants import llama_chat_template
+from .utils import CompletionFunc, Message
 
 logger = logging.getLogger(__name__)
 
@@ -372,195 +361,39 @@ class VLLMServerBase:
 
 
 class LocalBase:
-    """Local model backend via OpenAI-compatible API."""
+    """Local model backend via OpenAI-compatible chat completions API."""
 
     def __init__(
         self,
         model,
         api_key,
         api_base_url,
-        tool=None,
         ctx_manager: MoneyManager | None = None,
-        desired_output_length: int = 1024,
+        desired_output_length: int = 512,
         temperature: float = 1.0,
-        repetition_penalty: float = 1.0,
+        **kwargs,
     ):
         self.model = model
-        self.tool = tool
-        self.api_key = api_key
-        self.api_base_url = api_base_url
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url=api_base_url,
-        )
+        self.client = OpenAI(api_key=api_key, base_url=api_base_url)
         assert ctx_manager is not None
         self.ctx_manager = ctx_manager
-        self.enc = tiktoken.get_encoding("cl100k_base")
-        self.max_budget = 8192
-        self.output_budget = 1024
-        self.desired_output_length = desired_output_length
+        self.max_tokens = desired_output_length
         self.temperature = temperature
-        self.repetition_penalty = repetition_penalty
 
-        finetune_base_model = [
-            "meta-llama/Llama-3.2-1B-Instruct",
-            "meta-llama/Llama-3.2-3B-Instruct",
-        ]
-        is_finetune = False
-        for base_model in finetune_base_model:
-            if self.model.startswith(base_model):
-                is_finetune = True
-                self.tok = AutoTokenizer.from_pretrained(base_model)
-                break
-        if not is_finetune:
-            self.tok = AutoTokenizer.from_pretrained(self.model)
-
-        if self.model.startswith("meta-llama/Llama-3.2"):
-            self.tok.chat_template = llama_chat_template
-
-    def cutoff(self, message: str, budget: int) -> str:
-        tokens = self.enc.encode(message)
-        if len(tokens) > budget:
-            message = self.enc.decode(tokens[:budget])
-        return message
-
-    def manage_length(self, messages: List[Message]) -> None:
-        last_message = messages[-1]["content"]
-        if len(messages) > 1:
-            previous_tokens_length = 0
-            for msg in messages[:-1]:
-                if "content" in msg.keys() and msg["content"] is not None:
-                    previous_tokens_length += len(self.enc.encode(msg["content"]))
-        else:
-            previous_tokens_length = 0
-        budget = self.max_budget - self.desired_output_length - previous_tokens_length
-        messages[-1]["content"] = self.cutoff(last_message, budget)
-
-    def chat(
-        self, messages: List[Message], lora=None, **kwargs
-    ) -> Stream[OpenAICompletion] | None:
-        self.manage_length(messages)
-
-        prompt = chat_messages_to_prompt(
-            self.tok,
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-
-        response = completion_request(
-            prompt,
-            model=self.model if lora is None else lora,
+    def chat(self, messages, **kwargs):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
             temperature=self.temperature,
-            client=self.client,
+            max_tokens=self.max_tokens,
             **kwargs,
         )
         self.ctx_manager(response)
         return response
 
-    def __call__(
-        self,
-        messages: List[Message],
-        disable_function: bool = False,
-        stop: List[str] = [
-            "### USER",
-            "### ASSISTANT",
-            "### SYSTEM",
-            "<extra_id_1>",
-        ],
-        n: int = 1,
-        max_tokens: int | None = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        # Gemma models don't support system prompts; merge into user message
-        if "gemma" in self.model:
-            if messages[0]["role"] == "system":
-                system_message = messages[0]
-                messages = messages[1:]
-            for message in messages:
-                if message["role"] == "user":
-                    message["content"] = (
-                        f'{system_message["content"]}\n{message["content"]}'
-                    )
-
-        # SmolLM requires flattened message structure
-        if "SmolLM" in self.model:
-            new_messages = []
-            if messages[0]["role"] == "system":
-                new_user_message = (
-                    "\n\n".join([message["content"] for message in messages[1:-2]])
-                    if messages[-1]["role"] == "assistant"
-                    else "\n\n".join([message["content"] for message in messages[1:-1]])
-                )
-                new_messages.append(messages[0])
-            else:
-                new_user_message = (
-                    "\n\n".join([message["content"] for message in messages[:-2]])
-                    if messages[-1]["role"] == "assistant"
-                    else "\n\n".join([message["content"] for message in messages[:-1]])
-                )
-            if messages[-1]["role"] == "assistant":
-                new_messages.append(
-                    {
-                        "role": "user",
-                        "content": f"{new_user_message}\n\n{messages[-2]['content']}",
-                    }
-                )
-                new_messages.append(messages[-1])
-            else:
-                new_messages.append(
-                    {
-                        "role": "user",
-                        "content": f"{new_user_message}\n\n{messages[-1]['content']}",
-                    }
-                )
-            messages = new_messages
-
-        prompt = chat_messages_to_prompt(
-            self.tok,
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-
-        desired_output_length = min(
-            self.desired_output_length,
-            self.max_budget - len(self.enc.encode(prompt)),
-        )
-        response = self.chat(
-            messages,
-            disable_function=disable_function,
-            stop=stop,
-            n=n,
-            max_tokens=desired_output_length,
-            repetition_penalty=self.repetition_penalty,
-            **kwargs,
-        )
-        choices = []
-        for choice in response.choices:
-            choices.append(
-                OpenAIChoice(
-                    message=OpenAIChatCompletionMessage(
-                        content=choice.text,
-                        role="assistant",
-                    ),
-                    finish_reason=choice.finish_reason,
-                    index=choice.index,
-                    logprobs=choice.logprobs,
-                    stop_reason=choice.stop_reason,
-                )
-            )
-        return_response = OpenAIChatCompletion(
-            id=response.id,
-            choices=choices,
-            created=response.created,
-            model=response.model,
-            object="chat.completion",
-        )
-        return {
-            "response": return_response,
-            "function_results": None,
-        }
+    def __call__(self, messages, **kwargs):
+        response = self.chat(messages, **kwargs)
+        return {"response": response, "function_results": None}
 
 
 # (substring_match, model_type, output_budget) — checked in order
@@ -576,6 +409,7 @@ MODEL_ROUTING = [
     ("llava", "vllmserver", 32000),
     ("qwen", "openrouter", 32000),
     ("internvl", "openrouter", 32000),
+    ("local_", "local", 32000),
 ]
 
 BACKEND_CLASSES = {
