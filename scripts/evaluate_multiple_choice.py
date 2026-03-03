@@ -120,7 +120,10 @@ def main():
     print("=" * 50)
     print(f"Model: {results['model']}")
     print(f"Temperature: {results['temperature']}")
-    print(f"Total Questions: {results['total_questions']}")
+    print(f"Total Questions (loaded): {results.get('total_questions_loaded', results.get('total_questions', 'N/A'))}")
+    print(f"Total Questions (evaluated): {results.get('total_questions_evaluated', 'N/A')}")
+    if results.get("skipped_items"):
+        print(f"Skipped (e.g. missing images): {len(results['skipped_items'])}")
     print(f"Max Questions: {config.data.max_questions}")
     print(f"Random Seed: {config.data.random_seed}")
     print(f"Split: {split}")

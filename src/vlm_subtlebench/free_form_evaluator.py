@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
@@ -114,13 +115,34 @@ class FreeFormEvaluator(BaseAgent):
     def _prepare_ff_task(self, item: Dict[str, Any], dataset_path: str):
         """Prepare a single free-form task.
 
-        Returns (task_id, messages, pair_info) or None if the item cannot be processed.
+        Returns (task_id, messages, pair_info), a skip dict when image files are missing,
+        or None if the item cannot be processed.
         """
         processed = self.adapter.process_item(
             item, dataset_path, task_type="free_form"
         )
         if not processed:
             return None
+
+        missing = []
+        if not os.path.isfile(processed.first_image_path):
+            missing.append(processed.first_image_path)
+        if not os.path.isfile(processed.second_image_path):
+            missing.append(processed.second_image_path)
+        if missing:
+            logging.warning(
+                "Skipping item %s: missing image file(s): %s",
+                processed.item_id,
+                missing,
+            )
+            return {
+                "skip": True,
+                "reason": "missing_image",
+                "item_id": processed.item_id,
+                "first_image_path": processed.first_image_path,
+                "second_image_path": processed.second_image_path,
+                "missing_paths": missing,
+            }
 
         task_id = processed.item_id
         messages = self.create_comparison_messages(
@@ -237,6 +259,7 @@ class FreeFormEvaluator(BaseAgent):
             "evaluated_pairs": 0,
             "total_cost": 0.0,
             "results": [],
+            "skipped_items": [],
         }
 
         for i, item in enumerate(items):
@@ -244,6 +267,25 @@ class FreeFormEvaluator(BaseAgent):
                 item, dataset_path, task_type="free_form"
             )
             if not processed:
+                continue
+            missing = []
+            if not os.path.isfile(processed.first_image_path):
+                missing.append(processed.first_image_path)
+            if not os.path.isfile(processed.second_image_path):
+                missing.append(processed.second_image_path)
+            if missing:
+                logging.warning(
+                    "Skipping item %s: missing image file(s): %s",
+                    processed.item_id,
+                    missing,
+                )
+                results["skipped_items"].append({
+                    "reason": "missing_image",
+                    "item_id": processed.item_id,
+                    "first_image_path": processed.first_image_path,
+                    "second_image_path": processed.second_image_path,
+                    "missing_paths": missing,
+                })
                 continue
 
             base_name = processed.item_id
@@ -316,9 +358,13 @@ class FreeFormEvaluator(BaseAgent):
         # Prepare tasks for multithreading
         tasks = []
         pair_map = {}
+        skipped_items = []
 
         for i, item in enumerate(items):
             prepared = self._prepare_ff_task(item, dataset_path)
+            if isinstance(prepared, dict) and prepared.get("skip"):
+                skipped_items.append(prepared)
+                continue
             if prepared is None:
                 continue
 
@@ -368,7 +414,7 @@ class FreeFormEvaluator(BaseAgent):
                 results_list.append(pair_result)
 
                 print(
-                    f"  Processed {processed_count}/{len(items)}: {task_id} - {len(differences) if isinstance(differences, list) else 1} differences found"
+                    f"  Processed {processed_count}/{len(tasks)}: {task_id} - {len(differences) if isinstance(differences, list) else 1} differences found"
                 )
 
             else:
@@ -386,7 +432,7 @@ class FreeFormEvaluator(BaseAgent):
 
                 results_list.append(pair_result)
                 print(
-                    f"  Failed {processed_count}/{len(items)}: {task_id} - Error: {result.get('error', 'Unknown error')}"
+                    f"  Failed {processed_count}/{len(tasks)}: {task_id} - Error: {result.get('error', 'Unknown error')}"
                 )
 
         # Execute tasks using multithreading with callback
@@ -398,5 +444,8 @@ class FreeFormEvaluator(BaseAgent):
 
         return self._finalize_ff_results(
             results_list, items, log_output_file,
-            extra_metadata={"max_workers": max_workers or self.max_workers},
+            extra_metadata={
+                "max_workers": max_workers or self.max_workers,
+                "skipped_items": skipped_items,
+            },
         )

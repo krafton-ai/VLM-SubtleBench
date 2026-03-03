@@ -1,7 +1,8 @@
 import json
+import logging
 import os
 import random
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -37,21 +38,39 @@ class MultipleChoiceEvaluator(BaseAgent):
 
     def create_multiple_choice_prompt(
         self, question_data: Dict[str, Any], dataset_path: str
-    ) -> List[Message]:
-        """Create messages for multiple choice question with images."""
+    ) -> Union[Tuple[Any, Any, Any, Any], Dict[str, Any]]:
+        """Create messages for multiple choice question with images.
 
+        Returns (messages, options, correct_index, question_text) on success,
+        (None, None, None, None) on adapter reject, or a skip dict when image files are missing.
+        """
         # Process the item using the unified adapter
         processed = self.adapter.process_item(
             question_data, dataset_path, task_type="multiple_choice"
         )
         if not processed:
-            return None, None, None, None
+            return (None, None, None, None)
 
         # Check if image files exist
-        if not os.path.isfile(processed.first_image_path) or not os.path.isfile(
-            processed.second_image_path
-        ):
-            return None, None, None, None
+        missing = []
+        if not os.path.isfile(processed.first_image_path):
+            missing.append(processed.first_image_path)
+        if not os.path.isfile(processed.second_image_path):
+            missing.append(processed.second_image_path)
+        if missing:
+            logging.warning(
+                "Skipping item %s: missing image file(s): %s",
+                processed.item_id,
+                missing,
+            )
+            return {
+                "skip": True,
+                "reason": "missing_image",
+                "item_id": processed.item_id,
+                "first_image_path": processed.first_image_path,
+                "second_image_path": processed.second_image_path,
+                "missing_paths": missing,
+            }
 
         # Format options as A, B, C, D, E
         options_text = "\n".join(
@@ -78,9 +97,15 @@ class MultipleChoiceEvaluator(BaseAgent):
         self, question_data: Dict[str, Any], dataset_path: str
     ) -> Dict[str, Any]:
         """Evaluate a single multiple choice question."""
-        messages, options, correct_index, question_text = (
-            self.create_multiple_choice_prompt(question_data, dataset_path)
-        )
+        result = self.create_multiple_choice_prompt(question_data, dataset_path)
+        if isinstance(result, dict) and result.get("skip"):
+            return {
+                "question_id": result.get("item_id", "unknown"),
+                "skipped": True,
+                "reason": result.get("reason", "missing_image"),
+                "missing_paths": result.get("missing_paths", []),
+            }
+        messages, options, correct_index, question_text = result
 
         # Get question ID and correct answer from adapter
         processed = self.adapter.process_item(
@@ -159,12 +184,13 @@ class MultipleChoiceEvaluator(BaseAgent):
     ):
         """Prepare a single MC task.
 
-        Returns (messages, options, correct_index, question_text, question_id, correct_answer)
-        or None if the item cannot be processed.
+        Returns (messages, options, correct_index, question_text, question_id, correct_answer),
+        a skip dict when image files are missing, or None if the item cannot be processed.
         """
-        messages, options, correct_index, question_text = (
-            self.create_multiple_choice_prompt(vqa_item, dataset_path)
-        )
+        result = self.create_multiple_choice_prompt(vqa_item, dataset_path)
+        if isinstance(result, dict) and result.get("skip"):
+            return result
+        messages, options, correct_index, question_text = result
         if messages is None:
             return None
 
@@ -224,37 +250,45 @@ class MultipleChoiceEvaluator(BaseAgent):
         vqa_items: List[Dict[str, Any]],
         log_output_file: str,
         extra_metadata: Dict[str, Any] = None,
+        skipped_items: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Build summary dict, print stats, save JSON, return results."""
+        evaluated_count = len(results_list)
         processed_results = {
             "model": self.model_name,
             "temperature": self.temperature,
             "repetition_penalty": self.repetition_penalty,
-            "total_questions": len(vqa_items),
+            "total_questions_loaded": len(vqa_items),
+            "total_questions_evaluated": evaluated_count,
             "evaluation_time": datetime.now().isoformat(),
             "questions": results_list,
         }
         if extra_metadata:
             processed_results.update(extra_metadata)
+        if skipped_items is not None:
+            processed_results["skipped_items"] = skipped_items
 
-        accuracy = correct_count / len(vqa_items) if vqa_items else 0
+        accuracy = correct_count / evaluated_count if evaluated_count else 0
         total_cost = self.total_cost()
 
         processed_results["correct_count"] = correct_count
         processed_results["accuracy"] = accuracy
         processed_results["total_cost_usd"] = total_cost
         processed_results["cost_per_question"] = (
-            total_cost / len(vqa_items) if vqa_items else 0
+            total_cost / evaluated_count if evaluated_count else 0
         )
 
         print(f"\nEvaluation completed!")
-        print(f"Total questions: {len(vqa_items)}")
+        print(f"Total questions loaded: {len(vqa_items)}")
+        print(f"Total questions evaluated: {evaluated_count}")
+        if skipped_items:
+            print(f"Skipped (e.g. missing images): {len(skipped_items)}")
         print(f"Correct answers: {correct_count}")
         print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
         print(f"Total cost: ${total_cost:.6f}")
         print(
-            f"Cost per question: ${total_cost / len(vqa_items):.6f}"
-            if vqa_items
+            f"Cost per question: ${total_cost / evaluated_count:.6f}"
+            if evaluated_count
             else "Cost per question: $0.000000"
         )
 
@@ -291,10 +325,15 @@ class MultipleChoiceEvaluator(BaseAgent):
         self.refresh()
 
         correct_count = 0
+        evaluated_count = 0
         results_list = []
+        skipped_items = []
 
         for i, vqa_item in enumerate(vqa_items):
             prepared = self._prepare_mc_task(vqa_item, dataset_path, i)
+            if isinstance(prepared, dict) and prepared.get("skip"):
+                skipped_items.append(prepared)
+                continue
             if prepared is None:
                 continue
 
@@ -316,15 +355,17 @@ class MultipleChoiceEvaluator(BaseAgent):
                     correct_count += 1
 
                 results_list.append(question_result)
+                evaluated_count += 1
 
-                current_accuracy = correct_count / (i + 1)
+                current_accuracy = correct_count / evaluated_count
                 print(
-                    f"  Processed {i + 1}/{len(vqa_items)}: {question_id} - {'✓' if question_result['is_correct'] else '✗'} (Accuracy: {current_accuracy:.3f})"
+                    f"  Processed {evaluated_count}/{len(vqa_items)}: {question_id} - {'✓' if question_result['is_correct'] else '✗'} (Accuracy: {current_accuracy:.3f})"
                 )
 
             except Exception as e:
+                evaluated_count += 1
                 print(
-                    f"  Failed {i + 1}/{len(vqa_items)}: {question_id} - Error: {str(e)}"
+                    f"  Failed {evaluated_count}/{len(vqa_items)}: {question_id} - Error: {str(e)}"
                 )
                 question_result = {
                     "question_id": question_id,
@@ -342,7 +383,8 @@ class MultipleChoiceEvaluator(BaseAgent):
                 results_list.append(question_result)
 
         return self._finalize_mc_results(
-            results_list, correct_count, vqa_items, log_output_file
+            results_list, correct_count, vqa_items, log_output_file,
+            skipped_items=skipped_items,
         )
 
     def evaluate_all_questions_multithread(
@@ -374,8 +416,12 @@ class MultipleChoiceEvaluator(BaseAgent):
         # Prepare tasks for multithreading
         tasks = []
         item_map = {}  # Map task_id to item data for callback
+        skipped_items = []
         for i, vqa_item in enumerate(vqa_items):
             prepared = self._prepare_mc_task(vqa_item, dataset_path, i)
+            if isinstance(prepared, dict) and prepared.get("skip"):
+                skipped_items.append(prepared)
+                continue
             if prepared is None:
                 continue
 
@@ -438,7 +484,7 @@ class MultipleChoiceEvaluator(BaseAgent):
                     correct_count / processed_count if processed_count > 0 else 0
                 )
                 print(
-                    f"  Processed {processed_count}/{len(vqa_items)}: {task_id} - {'✓' if question_result['is_correct'] else '✗'} (Accuracy: {current_accuracy:.3f})"
+                    f"  Processed {processed_count}/{len(tasks)}: {task_id} - {'✓' if question_result['is_correct'] else '✗'} (Accuracy: {current_accuracy:.3f})"
                 )
             else:
                 # Handle failed task
@@ -462,7 +508,7 @@ class MultipleChoiceEvaluator(BaseAgent):
 
                 results_list.append(question_result)
                 print(
-                    f"  Failed {processed_count}/{len(vqa_items)}: {task_id} - Error: {result.get('error', 'Unknown error')}"
+                    f"  Failed {processed_count}/{len(tasks)}: {task_id} - Error: {result.get('error', 'Unknown error')}"
                 )
 
         # Execute tasks using multithreading with callback
@@ -475,4 +521,5 @@ class MultipleChoiceEvaluator(BaseAgent):
         return self._finalize_mc_results(
             results_list, correct_count, vqa_items, log_output_file,
             extra_metadata={"max_workers": max_workers or self.max_workers},
+            skipped_items=skipped_items,
         )
