@@ -130,9 +130,6 @@ You can use any model served via an **OpenAI-compatible API**. This works with s
 
 - [SGLang](https://docs.sglang.ai/) (`python -m sglang.launch_server`)
 - [vLLM](https://docs.vllm.ai/) (`python -m vllm.entrypoints.openai.api_server`)
-- [Ollama](https://ollama.com/) (`ollama serve`)
-- [LMStudio](https://lmstudio.ai/)
-- [llama.cpp server](https://github.com/ggerganov/llama.cpp)
 
 ### Step 1: Serve your model
 
