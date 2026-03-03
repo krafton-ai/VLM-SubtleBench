@@ -68,9 +68,7 @@ keys/
 │   └── key.env           # Single line: API key
 ├── google-key/
 │   └── gemini_gcp.json   # GCP service account JSON
-├── openrouter-key/
-│   └── key.env           # Single line: API key
-└── deepseek-key/
+└── openrouter-key/
     └── key.env           # Single line: API key
 ```
 
@@ -189,9 +187,8 @@ Model routing is determined by substring matching on the model name:
 
 | Model Name Pattern | Backend | Example |
 |---|---|---|
-| `gpt-3.5*`, `gpt-4*`, `gpt-5`, `o1*`, `o3*`, `o4*` | OpenAI | `gpt-4o`, `o3`, `gpt-5` |
+| `gpt-4*`, `gpt-5`, `o1*`, `o3*`, `o4*` | OpenAI | `gpt-4o`, `o3`, `gpt-5` |
 | `claude*` | OpenRouter | `anthropic/claude-sonnet-4` |
-| `deepseek*` | DeepSeek | `deepseek-reasoner` |
 | `gemini*` | Google Gemini | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | `llava*` | vLLM Server | `llava-hf/llava-onevision-qwen2-0.5b-ov-hf` |
 | `qwen*`, `internvl*` | OpenRouter | `qwen/qwen2.5-vl-72b-instruct` |

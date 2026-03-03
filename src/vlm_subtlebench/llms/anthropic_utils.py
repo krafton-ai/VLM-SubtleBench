@@ -86,7 +86,7 @@ def port_to_openai(response: AnthropicMessage) -> OpenAIChatCompletion:
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(5))
 def chat_completion_request(
-    messages, model: str = "gpt-3.5-turbo-0613", **kwargs
+    messages, model: str = "gpt-4o", **kwargs
 ) -> OpenAIChatCompletion | None:
     """Send a chat completion request to Anthropic, converting message format."""
     json_data = {"model": model, "messages": messages}

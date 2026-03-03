@@ -26,9 +26,6 @@ from .openai_utils import (
 from .anthropic_utils import (
     chat_completion_request as anthropic_chat_completion_request,
 )
-from .deepseek_utils import (
-    chat_completion_request as deepseek_chat_completion_request,
-)
 from .google_utils import (
     chat_completion_request as google_chat_completion_request,
 )
@@ -64,7 +61,7 @@ class GeminiChatCompletionResponse:
 
 
 class ChatGPTBase:
-    """OpenAI ChatGPT backend (gpt-3.5, gpt-4, gpt-5, o1, o3)."""
+    """OpenAI ChatGPT backend (gpt-4, gpt-5, o1, o3)."""
 
     def __init__(
         self,
@@ -80,12 +77,7 @@ class ChatGPTBase:
         assert ctx_manager is not None
         self.ctx_manager = ctx_manager
         self.enc = tiktoken.get_encoding("cl100k_base")
-        if "gpt-3.5" in self.model:
-            if "16k" in self.model or "1106" in self.model:
-                self.max_budget = 16384
-            else:
-                self.max_budget = 4096
-        elif "gpt-4-1106-preview" in self.model:
+        if "gpt-4-1106-preview" in self.model:
             self.max_budget = 128000
         elif "gpt-4" in self.model:
             self.max_budget = 128000
@@ -226,51 +218,6 @@ class ClaudeBase:
             disable_function=disable_function,
             stop=stop,
             max_tokens=self.max_tokens,
-        )
-        return {
-            "response": response,
-            "function_results": None,
-        }
-
-
-class DeepseekBase:
-    """DeepSeek backend."""
-
-    def __init__(
-        self,
-        model: str,
-        ctx_manager=None,
-        desired_output_length: int = 512,
-        temperature: float = 1.0,
-    ):
-        self.model = model
-        assert ctx_manager is not None
-        self.ctx_manager = ctx_manager
-        self.max_tokens = desired_output_length
-        self.temperature = temperature
-        self.stream = False
-
-    def chat(self, messages: List[dict], *args, **kwargs):
-        response = deepseek_chat_completion_request(
-            messages=messages,
-            model=self.model,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            stream=self.stream,
-            **kwargs,
-        )
-        self.ctx_manager(response)
-        return response
-
-    def __call__(
-        self,
-        messages: List[dict],
-        disable_function: bool = False,
-        stop: Union[List[str], str, None] = None,
-    ):
-        response = self.chat(
-            messages,
-            stop=stop,
         )
         return {
             "response": response,
@@ -619,14 +566,12 @@ class LocalBase:
 # (substring_match, model_type, output_budget) — checked in order
 # output_budget can be an int or a callable(model_name) -> int
 MODEL_ROUTING = [
-    ("gpt-3.5", "chatgpt", lambda m: 4096 if "16k" in m else 1024),
     ("gpt-4", "chatgpt", 64000),
     ("o1", "chatgpt", 64000),
     ("o3", "chatgpt", 64000),
     ("o4", "chatgpt", 64000),
     ("gpt-5", "chatgpt", 128000),
     ("claude", "openrouter", 64000),
-    ("deepseek", "deepseek", 1024),
     ("gemini", "gemini", 64000),
     ("llava", "vllmserver", 32000),
     ("qwen", "openrouter", 32000),
@@ -636,7 +581,6 @@ MODEL_ROUTING = [
 BACKEND_CLASSES = {
     "chatgpt": ChatGPTBase,
     "claude": ClaudeBase,
-    "deepseek": DeepseekBase,
     "gemini": GeminiBase,
     "openrouter": OpenRouterBase,
     "vllmserver": VLLMServerBase,

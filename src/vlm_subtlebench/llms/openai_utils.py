@@ -56,7 +56,7 @@ def chat_completion_request(
     messages: List[Message],
     functions: Iterable[CompletionFunc] | None = None,
     function_call: CompletionFuncCall | None = None,
-    model: str = "gpt-3.5-turbo-0613",
+    model: str = "gpt-4o",
     client: OpenAI = client,
     **kwargs,
 ) -> Stream[ChatCompletion] | None:
@@ -104,7 +104,7 @@ def chat_completion_request(
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(5))
 def completion_request(
-    prompt, model: str = "gpt-3.5-turbo-0613", client: OpenAI = client, **kwargs
+    prompt, model: str = "gpt-4o", client: OpenAI = client, **kwargs
 ) -> ChatCompletion | None:
     """Send a completion request to an OpenAI-compatible API."""
     json_data = {"model": model, "prompt": prompt}
@@ -163,9 +163,6 @@ def embedding_request(
 
 # (input_cost_per_1k_tokens, output_cost_per_1k_tokens)
 MODEL_PRICING = {
-    "gpt-3.5-turbo-16k-0613": (0.003, 0.004),
-    "gpt-3.5-turbo-1106": (0.001, 0.002),
-    "gpt-3.5-turbo": (0.001, 0.002),
     "gpt-4-turbo-preview": (0.01, 0.03),
     "gpt-4-turbo": (0.01, 0.03),
     "gpt-4-1106-preview": (0.01, 0.03),
@@ -207,7 +204,7 @@ MODEL_PRICING = {
 class MoneyManager:
     """Tracks API costs per model based on token usage."""
 
-    def __init__(self, model: str = "gpt-3.5-turbo-0613"):
+    def __init__(self, model: str = "gpt-4o"):
         self.total_cost = 0.0
         self.model = model
         pricing = MODEL_PRICING.get(self.model)
