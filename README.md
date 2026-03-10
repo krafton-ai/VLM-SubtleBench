@@ -2,6 +2,8 @@
 
 A benchmarking framework for evaluating Vision Language Models (VLMs) on detecting subtle differences between image pairs. Supports multiple-choice and free-form evaluation paradigms with multiple LLM backends.
 
+**Paper:** [VLM-SubtleBench: How Far Are VLMs from Human-Level Subtle Comparative Reasoning?](https://arxiv.org/abs/2603.07888)
+
 ## Table of Contents
 
 - [Environment Setup](#environment-setup)
