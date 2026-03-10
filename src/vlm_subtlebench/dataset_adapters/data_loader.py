@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 
 
 class DatasetLoader:
-    """Handles loading items from the unified qa.json format."""
+    """Handles loading items from JSONL dataset files (data/test.jsonl, data/val.jsonl)."""
 
     def load_items(
         self,
@@ -16,42 +16,38 @@ class DatasetLoader:
         has_caption: Optional[bool] = None,
         split: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Load items from qa.json with optional filtering.
+        """Load items from a JSONL file with optional filtering.
 
         Args:
-            qa_path: Path to qa.json file
+            qa_path: Path to JSONL file (e.g. data/test.jsonl)
             category: Filter by category (e.g. "state", "attribute"). None = all.
             domain: Filter by domain (e.g. "natural", "medical"). None = all.
             has_caption: Filter by has_caption field. None = no filter.
-            split: Filter by split (e.g. "test", "val"). None = all.
+            split: Unused (kept for backward compatibility; split is determined by file).
 
         Returns:
             List of data items matching the filters
         """
         qa_file = Path(qa_path)
         if not qa_file.is_file():
-            raise FileNotFoundError(f"qa.json not found at: {qa_path}")
+            raise FileNotFoundError(f"Dataset file not found at: {qa_path}")
 
+        data = []
         with open(qa_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            for line in f:
+                line = line.strip()
+                if line:
+                    data.append(json.loads(line))
 
-        if not isinstance(data, list):
-            raise ValueError(f"Expected a JSON array in {qa_path}, got {type(data).__name__}")
-
-        # Apply filters
+        # Apply filters (metadata fields are now at top level)
         items = []
         for item in data:
-            metadata = item.get("metadata", {}) or {}
-
-            if category is not None and metadata.get("category") != category:
+            if category is not None and item.get("category") != category:
                 continue
-            if domain is not None and metadata.get("domain") != domain:
+            if domain is not None and item.get("domain") != domain:
                 continue
             if has_caption is not None and item.get("has_caption") != has_caption:
                 continue
-            if split is not None and item.get("split") != split:
-                continue
-
             items.append(item)
 
         return items

@@ -6,7 +6,7 @@ import io
 from typing import List, Dict, Any
 from PIL import Image
 
-from vlm_subtlebench.utils import encode_image_to_base64
+from vlm_subtlebench.utils import encode_image_to_base64, open_image
 
 # --- System prompts ---
 
@@ -189,8 +189,8 @@ def create_concatenated_messages(
     question_text: str,
 ) -> List[Dict[str, Any]]:
     """Create messages with horizontally concatenated images."""
-    first_image = Image.open(first_image_path)
-    second_image = Image.open(second_image_path)
+    first_image = open_image(first_image_path)
+    second_image = open_image(second_image_path)
 
     if first_image.mode != "RGB":
         first_image = first_image.convert("RGB")
@@ -238,7 +238,7 @@ def create_grid_messages(
 
     def add_grid_to_image(image_path: str) -> str:
         """Add 4x4 grid overlay to an image and return base64."""
-        image = Image.open(image_path)
+        image = open_image(image_path)
         if image.mode != "RGB":
             image = image.convert("RGB")
 
@@ -277,8 +277,8 @@ def create_overlapped_messages(
     question_text: str,
 ) -> List[Dict[str, Any]]:
     """Create messages with first, second, and 50/50 blended images."""
-    image1 = Image.open(first_image_path).convert("RGBA")
-    image2 = Image.open(second_image_path).convert("RGBA")
+    image1 = open_image(first_image_path).convert("RGBA")
+    image2 = open_image(second_image_path).convert("RGBA")
 
     target_size = (min(image1.width, image2.width), min(image1.height, image2.height))
     image1_resized = image1.resize(target_size, Image.LANCZOS)
@@ -318,8 +318,8 @@ def create_substract_messages(
     """Create messages with first, second, and black-and-white difference map images."""
     import numpy as np
 
-    image1 = Image.open(first_image_path).convert("RGB")
-    image2 = Image.open(second_image_path).convert("RGB")
+    image1 = open_image(first_image_path).convert("RGB")
+    image2 = open_image(second_image_path).convert("RGB")
 
     target_size = (min(image1.width, image2.width), min(image1.height, image2.height))
     image1_resized = image1.resize(target_size, Image.LANCZOS)

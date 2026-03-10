@@ -51,11 +51,11 @@ class MultipleChoiceEvaluator(BaseAgent):
         if not processed:
             return (None, None, None, None)
 
-        # Check if image files exist
+        # Check if image files exist (skip check for URLs)
         missing = []
-        if not os.path.isfile(processed.first_image_path):
+        if not processed.first_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.first_image_path):
             missing.append(processed.first_image_path)
-        if not os.path.isfile(processed.second_image_path):
+        if not processed.second_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.second_image_path):
             missing.append(processed.second_image_path)
         if missing:
             logging.warning(
@@ -167,7 +167,8 @@ class MultipleChoiceEvaluator(BaseAgent):
         split: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Load dataset items and optionally subsample."""
-        qa_path = os.path.join(dataset_path, "qa.json")
+        split_file = split if split else "test"
+        qa_path = os.path.join(dataset_path, "data", f"{split_file}.jsonl")
         vqa_items = self.data_loader.load_items(
             qa_path, category=category, domain=domain, split=split
         )

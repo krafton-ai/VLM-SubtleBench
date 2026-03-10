@@ -125,9 +125,9 @@ class FreeFormEvaluator(BaseAgent):
             return None
 
         missing = []
-        if not os.path.isfile(processed.first_image_path):
+        if not processed.first_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.first_image_path):
             missing.append(processed.first_image_path)
-        if not os.path.isfile(processed.second_image_path):
+        if not processed.second_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.second_image_path):
             missing.append(processed.second_image_path)
         if missing:
             logging.warning(
@@ -234,7 +234,8 @@ class FreeFormEvaluator(BaseAgent):
         split: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Evaluate all captioned image pairs and save results to JSON file."""
-        qa_path = os.path.join(dataset_path, "qa.json")
+        split_file = split if split else "test"
+        qa_path = os.path.join(dataset_path, "data", f"{split_file}.jsonl")
         items = self.data_loader.load_items(
             qa_path, category=category, domain=domain, has_caption=True, split=split
         )
@@ -269,9 +270,9 @@ class FreeFormEvaluator(BaseAgent):
             if not processed:
                 continue
             missing = []
-            if not os.path.isfile(processed.first_image_path):
+            if not processed.first_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.first_image_path):
                 missing.append(processed.first_image_path)
-            if not os.path.isfile(processed.second_image_path):
+            if not processed.second_image_path.startswith(("http://", "https://")) and not os.path.isfile(processed.second_image_path):
                 missing.append(processed.second_image_path)
             if missing:
                 logging.warning(
@@ -335,7 +336,8 @@ class FreeFormEvaluator(BaseAgent):
         split: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Evaluate all captioned image pairs using multithreading and save results to JSON file."""
-        qa_path = os.path.join(dataset_path, "qa.json")
+        split_file = split if split else "test"
+        qa_path = os.path.join(dataset_path, "data", f"{split_file}.jsonl")
         items = self.data_loader.load_items(
             qa_path, category=category, domain=domain, has_caption=True, split=split
         )
