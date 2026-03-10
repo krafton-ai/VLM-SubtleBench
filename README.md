@@ -1,8 +1,16 @@
-# VLM-SubtleBench
+# VLM-SubtleBench: How Far Are VLMs from Human-Level Subtle Comparative Reasoning?
 
-A benchmarking framework for evaluating Vision Language Models (VLMs) on detecting subtle differences between image pairs. Supports multiple-choice and free-form evaluation paradigms with multiple LLM backends.
+<div align="center">
 
-**Paper:** [VLM-SubtleBench: How Far Are VLMs from Human-Level Subtle Comparative Reasoning?](https://arxiv.org/abs/2603.07888)
+[![arXiv](https://img.shields.io/badge/arXiv-2603.07888-b31b1b.svg?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2603.07888)
+[![Dataset](https://img.shields.io/badge/🤗%20Dataset-VLM--SubtleBench-F59E0B.svg?style=for-the-badge&logoColor=white)](https://huggingface.co/datasets/KRAFTON/VLM-SubtleBench)
+
+</div>
+
+## Overview
+VLM-SubtleBench is a benchmark for evaluating **subtle comparative reasoning** in vision-language models (VLMs): the ability to identify fine-grained differences between visually similar image pairs. Unlike prior comparison benchmarks that emphasize large and salient changes, VLM-SubtleBench focuses on nuanced variations that are often critical in real-world settings.
+
+The benchmark covers **10 difference types**—**Attribute, State, Emotion, Temporal, Spatial, Existence, Quantity, Quality, Viewpoint, and Action**—and spans **diverse domains** including **natural, industrial, medical, aerial, and synthetic** imagery. It supports both **multiple-choice** and **free-form** evaluation, enabling systematic analysis of how current VLMs perform across difference types and domains.
 
 ## Table of Contents
 
@@ -13,7 +21,6 @@ A benchmarking framework for evaluating Vision Language Models (VLMs) on detecti
   - [Multiple-Choice Evaluation](#multiple-choice-evaluation)
   - [Free-Form Evaluation](#free-form-evaluation)
 - [Using a Local Model](#using-a-local-model)
-- [Configuration Reference](#configuration-reference)
 - [Supported Models](#supported-models)
 - [Results and Logs](#results-and-logs)
 
